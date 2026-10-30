@@ -32,6 +32,13 @@ data class MoneyEntry(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "study_sessions")
+data class StudySession(
+    @PrimaryKey val id: UUID = UUID.randomUUID(),
+    val durationMinutes: Int,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 data class Track(
     val id: Int,
     val title: String,

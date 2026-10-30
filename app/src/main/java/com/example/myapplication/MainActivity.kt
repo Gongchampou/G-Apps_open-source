@@ -45,8 +45,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge() // This makes the app go full screen (behind the status bar)
         setContent {
-            // TIP: This line connects your app to the Dark Mode setting in your ViewModel.
-            val isDarkMode by viewModel.isDarkMode.collectAsState()
+            // Automatically adapts to system dark/light theme on first open, or uses user setting if changed
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val userDarkModePref by viewModel.isDarkMode.collectAsState()
+            val isDarkMode = userDarkModePref ?: isSystemDark
             
             MyApplicationTheme(darkTheme = isDarkMode) {
                 // This part handles "Backgrounding" - it saves your timer if you close the app.
@@ -80,14 +82,10 @@ class MainActivity : ComponentActivity() {
 sealed class Screen(val route: String, val icon: ImageVector, val label: String) {
     object Todo : Screen("todo", Icons.Default.List, "Todo")
     object Timer : Screen("timer", Icons.Default.Timer, "Timer")
-    object Music : Screen("music", Icons.Default.MusicNote, "Focus")
+    object StudyTimer : Screen("study_timer", Icons.Default.HourglassTop, "Study")
     object Relax : Screen("relax", Icons.AutoMirrored.Filled.MenuBook, "E-Book")
     object Settings : Screen("settings", Icons.Default.Settings, "Settings")
     object MoneyTracking : Screen("money_tracking", Icons.Default.AttachMoney, "Money")
-    
-    // These screens are hidden from the bottom bar but still part of the app logic
-    object DownloadedMusic : Screen("downloaded_music", Icons.Default.Download, "Downloaded")
-    object OnlineMusic : Screen("online_music", Icons.Default.CloudDownload, "Online")
 }
 
 /**
@@ -107,27 +105,18 @@ fun MainScreen(viewModel: TaskViewModel) {
         // NAV HOST: This is like a "Projector". It swaps screens based on what you click.
         NavHost(
             navController = navController,
-            // CHANGE: Change 'Screen.Todo.route' to 'Screen.Timer.route' to start on the Timer instead.
-            startDestination = Screen.Todo.route, 
+            startDestination = Screen.StudyTimer.route, 
             modifier = Modifier.padding(innerPadding)
         ) {
             // Each 'composable' block links a "Route" to a "Screen File"
+            composable(Screen.StudyTimer.route) { StudyTimerScreen(viewModel) }
             composable(Screen.Todo.route) { 
                 TodoScreen(viewModel, onNavigateToMoney = { navController.navigate(Screen.MoneyTracking.route) }) 
             }
             composable(Screen.Timer.route) { TimerScreen(viewModel) }
-            composable(Screen.Music.route) { MusicScreen(navController) }
             composable(Screen.Relax.route) { EbookScreen(viewModel) }
             composable(Screen.Settings.route) { SettingsScreen(viewModel, navController) }
             composable(Screen.MoneyTracking.route) { MoneyTrackingScreen(viewModel, onBack = { navController.popBackStack() }) }
-            
-            // Sub-pages for the Music screen
-            composable(Screen.DownloadedMusic.route) { 
-                DownloadedMusicScreen(onBack = { navController.popBackStack() }) 
-            }
-            composable(Screen.OnlineMusic.route) {
-                OnlineMusicScreen(onBack = { navController.popBackStack() })
-            }
         }
     }
 }
@@ -139,8 +128,8 @@ fun MainScreen(viewModel: TaskViewModel) {
 @Composable
 fun BottomNavigationBar(navController: NavHostController) {
     // CHANGE: To reorder the buttons, simply move the items in this list!
-    // Example: listOf(Screen.Music, Screen.Todo, Screen.Timer...)
-    val items = listOf(Screen.Todo, Screen.Timer, Screen.Music, Screen.Relax, Screen.Settings)
+    // "Study" is in the exact middle (3rd out of 5)
+    val items = listOf(Screen.Todo, Screen.Timer, Screen.StudyTimer, Screen.Relax, Screen.Settings)
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route

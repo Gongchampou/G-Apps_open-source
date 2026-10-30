@@ -40,17 +40,10 @@ import android.widget.Toast
 import com.gongchampou.gapps.Screen
 // LINE 36: 'TaskViewModel' is the "Brain" that stores your settings and data.
 import com.gongchampou.gapps.TaskViewModel
-// LINE 38: 'Track' is a template for a single music song (Title, Artist, etc.).
-import com.gongchampou.gapps.Track
-// LINE 40: 'Gson' is a tool that reads the 'music_list.json' file so we know what songs exist.
 import com.google.gson.Gson
-// LINE 42: 'TypeToken' helps Gson understand how to turn text into a list of songs.
-import com.google.gson.reflect.TypeToken
-// LINE 44: 'Dispatchers' and 'launch' are used to run heavy tasks in the background.
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-// LINE 48: 'HttpURLConnection' is used to talk to the internet and get data.
 import java.net.HttpURLConnection
 import java.net.URL
 // LINE 50: 'java.io.File' is a tool that lets the app look at files in your phone's memory.
@@ -63,7 +56,9 @@ import java.io.File
 @Composable
 fun SettingsScreen(viewModel: TaskViewModel, navController: NavController) {
     // LINE 53: We "watch" the Dark Mode setting. If it's on, the screen turns dark.
-    val isDarkMode by viewModel.isDarkMode.collectAsState()
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkModePref by viewModel.isDarkMode.collectAsState()
+    val isDarkMode = isDarkModePref ?: isSystemDark
     // LINE 55: We "watch" the Notifications setting to see if you want alerts.
     val isNotificationsEnabled by viewModel.isNotificationsEnabled.collectAsState()
     // LINE 57: This checks if the phone should vibrate when the timer stops.
@@ -75,47 +70,10 @@ fun SettingsScreen(viewModel: TaskViewModel, navController: NavController) {
     
     // LINE 64: This tool handles opening websites for us.
     val uriHandler = LocalUriHandler.current
-    // LINE 64: This tool helps find where the app stores its music files.
     val context = LocalContext.current
 
     // LINE 66: This tool lets the app run tasks in the background without freezing the screen.
     val scope = rememberCoroutineScope()
-    
-    // LINE 68: This keeps a count of how many songs you've downloaded so far.
-    var downloadCount by remember { mutableIntStateOf(0) }
-    
-    // LINE 70: This helper function makes sure the file names match (e.g., 'track_1.mp3').
-    fun getFileName(track: Track): String {
-        return if (track.url.isBlank()) {
-            track.fileName
-        } else {
-            "track_${track.id}.mp3"
-        }
-    }
-
-    /**
-     * LINE 80: This function looks in the 'music' folder on your phone and counts
-     * only the songs that have been successfully downloaded.
-     */
-    fun updateDownloadCount() {
-        try {
-            val jsonString = context.assets.open("music_list.json").bufferedReader().use { it.readText() }
-            val type = object : TypeToken<List<Track>>() {}.type
-            val allTracks: List<Track> = Gson().fromJson(jsonString, type)
-            val musicDir = File(context.filesDir, "music")
-            downloadCount = allTracks.count { track ->
-                val file = File(musicDir, getFileName(track))
-                track.url.isNotBlank() && file.exists() && file.length() > 0
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    // LINE 98: As soon as you open this page, the app counts your downloaded songs.
-    LaunchedEffect(Unit) {
-        updateDownloadCount()
-    }
 
     /**
      * LINE 103: This function checks GitHub to see if there is a new version of the app.
@@ -279,27 +237,6 @@ fun SettingsScreen(viewModel: TaskViewModel, navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // LINE 176: DOWNLOADED MUSIC FOLDER - COMPACTED
-        Surface(
-            onClick = { navController.navigate(Screen.DownloadedMusic.route) },
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(8.dp), // Reduced padding
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Download, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) // Smaller icon
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Downloaded Music", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("$downloadCount tracks saved", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                }
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(14.dp))
-            }
-        }
-
         // LINE 200: INFO SECTION
         // This shows the app version and developer name.
 
@@ -307,7 +244,7 @@ fun SettingsScreen(viewModel: TaskViewModel, navController: NavController) {
         Text("About", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         Text("Developer: Gongchampou Kamei.", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         Spacer(modifier = Modifier.height(10.dp))
-        Text("G Apps Version: 1.0.1", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+        Text("G Apps Version: 2.0.0", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
 
         Spacer(modifier = Modifier.height(32.dp))
 

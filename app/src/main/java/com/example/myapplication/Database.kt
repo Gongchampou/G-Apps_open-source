@@ -49,11 +49,24 @@ interface MoneyDao {
     suspend fun deleteAllMoneyEntries()
 }
 
-@Database(entities = [Task::class, Todo::class, MoneyEntry::class], version = 5)
+@Dao
+interface StudyDao {
+    @Query("SELECT * FROM study_sessions ORDER BY timestamp DESC")
+    fun getAllStudySessions(): Flow<List<StudySession>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStudySession(session: StudySession)
+
+    @Query("DELETE FROM study_sessions")
+    suspend fun deleteAllStudySessions()
+}
+
+@Database(entities = [Task::class, Todo::class, MoneyEntry::class, StudySession::class], version = 6)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun todoDao(): TodoDao
     abstract fun moneyDao(): MoneyDao
+    abstract fun studyDao(): StudyDao
 
     companion object {
         @Volatile

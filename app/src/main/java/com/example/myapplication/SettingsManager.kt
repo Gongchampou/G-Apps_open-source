@@ -14,7 +14,7 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
 class SettingsManager(context: Context) {
     private val dataStore = context.dataStore
 
-    val darkModeFlow: Flow<Boolean> = dataStore.data.map { it[DARK_MODE] ?: false }
+    val darkModeFlow: Flow<Boolean?> = dataStore.data.map { it[DARK_MODE] }
     val notificationsFlow: Flow<Boolean> = dataStore.data.map { it[NOTIFICATIONS] ?: true }
     val soundEffectsFlow: Flow<Boolean> = dataStore.data.map { it[SOUND_EFFECTS] ?: true }
     val vibrationFlow: Flow<Boolean> = dataStore.data.map { it[VIBRATION] ?: true }

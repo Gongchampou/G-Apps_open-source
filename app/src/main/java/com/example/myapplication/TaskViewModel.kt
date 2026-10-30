@@ -26,7 +26,27 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     private val taskDao = db.taskDao()
     private val todoDao = db.todoDao()
     private val moneyDao = db.moneyDao()
+    private val studyDao = db.studyDao()
     val settingsManager = SettingsManager(application)
+
+    val studySessions: StateFlow<List<StudySession>> = studyDao.getAllStudySessions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // --- STUDY TIMER STATE IN VIEWMODEL (Survives Navigation & App Exit) ---
+    private val _studyInitialDuration = MutableStateFlow(0L)
+    val studyInitialDuration: StateFlow<Long> = _studyInitialDuration.asStateFlow()
+
+    private val _studyRemainingTime = MutableStateFlow(0L)
+    val studyRemainingTime: StateFlow<Long> = _studyRemainingTime.asStateFlow()
+
+    private val _isStudyRunning = MutableStateFlow(false)
+    val isStudyRunning: StateFlow<Boolean> = _isStudyRunning.asStateFlow()
+
+    private val _studyLastStartTime = MutableStateFlow(0L)
+    val studyLastStartTime: StateFlow<Long> = _studyLastStartTime.asStateFlow()
+
+    private val _accumulatedStudyMillis = MutableStateFlow(0L)
+    val accumulatedStudyMillis: StateFlow<Long> = _accumulatedStudyMillis.asStateFlow()
 
     val tasks: StateFlow<List<Task>> = taskDao.getAllTasks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -34,8 +54,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     val todos: StateFlow<List<Todo>> = todoDao.getAllTodos()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val isDarkMode: StateFlow<Boolean> = settingsManager.darkModeFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val isDarkMode: StateFlow<Boolean?> = settingsManager.darkModeFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val isNotificationsEnabled: StateFlow<Boolean> = settingsManager.notificationsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -164,7 +184,15 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var wasStudyAutoPausedOnBackground = false
+
     fun onEnterBackground() {
+        // Auto-pause Study Timer when exiting or backgrounding the app
+        if (_isStudyRunning.value) {
+            wasStudyAutoPausedOnBackground = true
+            pauseStudyTimer()
+        }
+
         val runningTask = tasks.value.find { it.isRunning }
         if (runningTask != null) {
             val intent = Intent(getApplication(), TimerService::class.java).apply {
@@ -176,6 +204,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onEnterForeground() {
+        // Auto-resume Study Timer when returning to the app if it was auto-paused on background
+        if (wasStudyAutoPausedOnBackground) {
+            wasStudyAutoPausedOnBackground = false
+            startStudyTimer()
+        }
+
         val intent = Intent(getApplication(), TimerService::class.java).apply {
             action = "UPDATE_VISIBILITY"
             putExtra("IS_VISIBLE", true)
@@ -376,6 +410,88 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     fun setMoneySpent(spent: Float) {
         viewModelScope.launch {
             settingsManager.setMoneySpent(spent)
+        }
+    }
+
+    fun logStudySession(durationMinutes: Int) {
+        if (durationMinutes > 0) {
+            viewModelScope.launch {
+                studyDao.insertStudySession(StudySession(durationMinutes = durationMinutes))
+            }
+        }
+    }
+
+    fun setStudyDuration(durationMillis: Long) {
+        _studyInitialDuration.value = durationMillis
+        _studyRemainingTime.value = durationMillis
+        _isStudyRunning.value = false
+    }
+
+    fun startStudyTimer() {
+        if (_studyInitialDuration.value > 0L) {
+            val now = System.currentTimeMillis()
+            _studyLastStartTime.value = now
+            if (_studyRemainingTime.value <= 0L) {
+                _studyRemainingTime.value = _studyInitialDuration.value
+            }
+            _isStudyRunning.value = true
+            startTimerService("Study Timer", _studyRemainingTime.value)
+        }
+    }
+
+    fun pauseStudyTimer() {
+        if (_isStudyRunning.value) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - _studyLastStartTime.value
+            _accumulatedStudyMillis.value += elapsed
+            _studyRemainingTime.value = (_studyRemainingTime.value - elapsed).coerceAtLeast(0L)
+            _isStudyRunning.value = false
+            stopTimerService()
+            flushAndLogStudySession()
+        }
+    }
+
+    fun resetStudyTimer() {
+        if (_isStudyRunning.value) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - _studyLastStartTime.value
+            _accumulatedStudyMillis.value += elapsed
+            flushAndLogStudySession()
+            _isStudyRunning.value = false
+            stopTimerService()
+        }
+        _studyRemainingTime.value = _studyInitialDuration.value
+        stopSound()
+    }
+
+    fun updateStudyTick() {
+        if (_isStudyRunning.value) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - _studyLastStartTime.value
+            val currentRemaining = (_studyRemainingTime.value - elapsed).coerceAtLeast(0L)
+            if (currentRemaining <= 0L) {
+                _isStudyRunning.value = false
+                _studyRemainingTime.value = 0L
+                val sessionMins = (_studyInitialDuration.value / (60 * 1000L)).toInt().coerceAtLeast(1)
+                logStudySession(sessionMins)
+                _accumulatedStudyMillis.value = 0L
+                stopTimerService()
+                triggerAlert()
+            }
+        }
+    }
+
+    fun flushAndLogStudySession() {
+        if (_accumulatedStudyMillis.value >= 10000L) {
+            val loggedMins = ((_accumulatedStudyMillis.value + 30000L) / 60000L).toInt().coerceAtLeast(1)
+            logStudySession(loggedMins)
+            _accumulatedStudyMillis.value = 0L
+        }
+    }
+
+    fun clearStudySessions() {
+        viewModelScope.launch {
+            studyDao.deleteAllStudySessions()
         }
     }
 
