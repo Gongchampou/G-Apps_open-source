@@ -100,7 +100,7 @@ fun SettingsScreen(viewModel: TaskViewModel, navController: NavController) {
                     withContext(Dispatchers.Main) { // Switch back to the UI thread to show messages.
                         if (latestVersion > "1.0.0") {
                             Toast.makeText(context, "New Update Found: $tagName", Toast.LENGTH_LONG).show()
-                            uriHandler.openUri("https://github.com/Gongchampou/an-focus/releases/latest")
+                            uriHandler.openUri("https://github.com/Gongchampou/G-Apps_open-source/releases/latest")
                         } else {
                             Toast.makeText(context, "Your app is already up to date!", Toast.LENGTH_SHORT).show()
                         }
@@ -262,7 +262,7 @@ fun SettingsScreen(viewModel: TaskViewModel, navController: NavController) {
             // BOX 1: THE GITHUB BUTTON
             Button(
                 onClick = {
-                    uriHandler.openUri("https://github.com/Gongchampou/an-focus.git")
+                    uriHandler.openUri("https://github.com/Gongchampou/G-Apps_open-source")
                 },
                 modifier = Modifier.weight(1f).height(44.dp), // .weight(1f) makes it take half the space.
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
