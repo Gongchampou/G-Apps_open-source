@@ -1,26 +1,34 @@
 package com.gongchampou.gapps
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -49,6 +57,17 @@ class MainActivity : ComponentActivity() {
             val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
             val userDarkModePref by viewModel.isDarkMode.collectAsState()
             val isDarkMode = userDarkModePref ?: isSystemDark
+
+            val context = LocalContext.current
+            DisposableEffect(isDarkMode) {
+                val window = (context as? Activity)?.window
+                if (window != null) {
+                    val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                    insetsController.isAppearanceLightStatusBars = !isDarkMode
+                    insetsController.isAppearanceLightNavigationBars = !isDarkMode
+                }
+                onDispose {}
+            }
             
             MyApplicationTheme(darkTheme = isDarkMode) {
                 // This part handles "Backgrounding" - it saves your timer if you close the app.
@@ -95,28 +114,120 @@ sealed class Screen(val route: String, val icon: ImageVector, val label: String)
 @Composable
 fun MainScreen(viewModel: TaskViewModel) {
     val navController = rememberNavController()
-    
+    val items = listOf(Screen.Todo, Screen.Timer, Screen.StudyTimer, Screen.Relax, Screen.Settings)
+
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    val isSwipeMainNavEnabled by viewModel.isSwipeMainNavEnabled.collectAsState()
+
+    var offsetX by remember { mutableFloatStateOf(0f) }
+
     Scaffold(
         bottomBar = {
             // TIP: This adds the navigation menu at the very bottom of the screen.
             BottomNavigationBar(navController)
         }
     ) { innerPadding ->
-        // NAV HOST: This is like a "Projector". It swaps screens based on what you click.
-        NavHost(
-            navController = navController,
-            startDestination = Screen.StudyTimer.route, 
-            modifier = Modifier.padding(innerPadding)
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
+                .pointerInput(currentRoute, isSwipeMainNavEnabled) {
+                    if (isSwipeMainNavEnabled) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                val currentIndex = items.indexOfFirst { it.route == currentRoute }
+                                if (currentIndex != -1) {
+                                    if (offsetX < -80f && currentIndex < items.size - 1) {
+                                        // Swipe Left -> Next Tab
+                                        val nextScreen = items[currentIndex + 1]
+                                        navController.navigate(nextScreen.route) {
+                                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    } else if (offsetX > 80f && currentIndex > 0) {
+                                        // Swipe Right -> Previous Tab
+                                        val prevScreen = items[currentIndex - 1]
+                                        navController.navigate(prevScreen.route) {
+                                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
+                                }
+                                offsetX = 0f
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                offsetX += dragAmount
+                            }
+                        )
+                    }
+                }
         ) {
-            // Each 'composable' block links a "Route" to a "Screen File"
-            composable(Screen.StudyTimer.route) { StudyTimerScreen(viewModel) }
-            composable(Screen.Todo.route) { 
-                TodoScreen(viewModel, onNavigateToMoney = { navController.navigate(Screen.MoneyTracking.route) }) 
+            NavHost(
+                navController = navController,
+                startDestination = Screen.StudyTimer.route,
+                enterTransition = {
+                    val initialRoute = initialState.destination.route
+                    val targetRoute = targetState.destination.route
+                    val initialIdx = items.indexOfFirst { it.route == initialRoute }
+                    val targetIdx = items.indexOfFirst { it.route == targetRoute }
+
+                    if (targetIdx >= initialIdx) {
+                        slideInHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeIn(animationSpec = tween(300))
+                    } else {
+                        slideInHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeIn(animationSpec = tween(300))
+                    }
+                },
+                exitTransition = {
+                    val initialRoute = initialState.destination.route
+                    val targetRoute = targetState.destination.route
+                    val initialIdx = items.indexOfFirst { it.route == initialRoute }
+                    val targetIdx = items.indexOfFirst { it.route == targetRoute }
+
+                    if (targetIdx >= initialIdx) {
+                        slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeOut(animationSpec = tween(300))
+                    } else {
+                        slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeOut(animationSpec = tween(300))
+                    }
+                },
+                popEnterTransition = {
+                    val initialRoute = initialState.destination.route
+                    val targetRoute = targetState.destination.route
+                    val initialIdx = items.indexOfFirst { it.route == initialRoute }
+                    val targetIdx = items.indexOfFirst { it.route == targetRoute }
+
+                    if (targetIdx >= initialIdx) {
+                        slideInHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeIn(animationSpec = tween(300))
+                    } else {
+                        slideInHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeIn(animationSpec = tween(300))
+                    }
+                },
+                popExitTransition = {
+                    val initialRoute = initialState.destination.route
+                    val targetRoute = targetState.destination.route
+                    val initialIdx = items.indexOfFirst { it.route == initialRoute }
+                    val targetIdx = items.indexOfFirst { it.route == targetRoute }
+
+                    if (targetIdx >= initialIdx) {
+                        slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeOut(animationSpec = tween(300))
+                    } else {
+                        slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeOut(animationSpec = tween(300))
+                    }
+                }
+            ) {
+                // Each 'composable' block links a "Route" to a "Screen File"
+                composable(Screen.StudyTimer.route) { StudyTimerScreen(viewModel) }
+                composable(Screen.Todo.route) { 
+                    TodoScreen(viewModel, onNavigateToMoney = { navController.navigate(Screen.MoneyTracking.route) }) 
+                }
+                composable(Screen.Timer.route) { TimerScreen(viewModel) }
+                composable(Screen.Relax.route) { EbookScreen(viewModel) }
+                composable(Screen.Settings.route) { SettingsScreen(viewModel, navController) }
+                composable(Screen.MoneyTracking.route) { MoneyTrackingScreen(viewModel, onBack = { navController.popBackStack() }) }
             }
-            composable(Screen.Timer.route) { TimerScreen(viewModel) }
-            composable(Screen.Relax.route) { EbookScreen(viewModel) }
-            composable(Screen.Settings.route) { SettingsScreen(viewModel, navController) }
-            composable(Screen.MoneyTracking.route) { MoneyTrackingScreen(viewModel, onBack = { navController.popBackStack() }) }
         }
     }
 }

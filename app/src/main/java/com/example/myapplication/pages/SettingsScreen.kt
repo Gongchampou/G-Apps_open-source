@@ -135,6 +135,11 @@ fun SettingsScreen(viewModel: TaskViewModel, navController: NavController) {
         SettingsToggle("Sound", isSoundEnabled) { viewModel.setSound(it) }
         SettingsToggle("Screen Awake", keepScreenAwake) { viewModel.setKeepScreenAwake(it) }
 
+        val isSwipeMainNavEnabled by viewModel.isSwipeMainNavEnabled.collectAsState()
+        val isSwipeTrackingNavEnabled by viewModel.isSwipeTrackingNavEnabled.collectAsState()
+        SettingsToggle("Swipe: Main Navigation", isSwipeMainNavEnabled) { viewModel.setSwipeMainNav(it) }
+        SettingsToggle("Swipe: Tracking Sheet", isSwipeTrackingNavEnabled) { viewModel.setSwipeTrackingNav(it) }
+
         // LINE 116: This setting controls how you see your money tracking (Circle vs Card).
         val showCircularProgress by viewModel.showCircularProgress.collectAsState()
         SettingsToggle(

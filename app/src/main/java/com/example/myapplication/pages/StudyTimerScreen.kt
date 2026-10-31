@@ -2,10 +2,12 @@ package com.gongchampou.gapps.pages
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +30,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +49,7 @@ import java.util.concurrent.TimeUnit
 /**
  * STUDY TIMER SCREEN
  * Dual Concentric Circle Timer Display with separate Hours & Minutes setting inputs.
+ * Fully adapts to Light & Dark system theme switches.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +58,12 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
     val keepScreenAwake by viewModel.keepScreenAwake.collectAsState()
     val studySessions by viewModel.studySessions.collectAsState()
 
-    // Collect Study Timer State from ViewModel (Survives Tab Navigation & App Backgrounding)
+    // Observe theme preference (Light / Dark)
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkModePref by viewModel.isDarkMode.collectAsState()
+    val isDark = isDarkModePref ?: isSystemDark
+
+    // Collect Study Timer State from ViewModel
     val initialDurationMillis by viewModel.studyInitialDuration.collectAsState()
     val remainingTimeMillis by viewModel.studyRemainingTime.collectAsState()
     val isRunning by viewModel.isStudyRunning.collectAsState()
@@ -134,15 +143,18 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
         label = "InnerProgress"
     )
 
-    // Sleek Dark Theme Colors (Matching Image 1 & 2)
-    val darkBackground = Color(0xFF141921)
-    val circleTrackColor = Color(0xFF232D3B)
-    val neonCyanColor = Color(0xFF00E5FF)
+    // Dynamic Theme Adaptive Colors
+    val backgroundColor = if (isDark) Color(0xFF141921) else MaterialTheme.colorScheme.background
+    val circleTrackColor = if (isDark) Color(0xFF232D3B) else MaterialTheme.colorScheme.surfaceVariant
+    val neonCyanColor = if (isDark) Color(0xFF00E5FF) else MaterialTheme.colorScheme.primary
+    val iconColor = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+    val dialogBgColor = if (isDark) Color(0xFF232D3B) else MaterialTheme.colorScheme.surface
+    val textColor = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(darkBackground)
+            .background(backgroundColor)
             .padding(20.dp)
     ) {
         // --- TOP HEADER ROW ---
@@ -168,7 +180,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Tracking Analytics Menu",
-                        tint = Color.White,
+                        tint = iconColor,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -187,7 +199,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Reset Timer",
-                        tint = Color.White,
+                        tint = iconColor,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -281,7 +293,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                         val tickColor = if (isTickActive) {
                             if (i < 20) Color(0xFFFFEA00) else if (i < 40) Color(0xFFFF9100) else Color(0xFFFF2A6D)
                         } else {
-                            Color(0xFF232D3B)
+                            if (isDark) Color(0xFF232D3B) else circleTrackColor.copy(alpha = 0.5f)
                         }
 
                         drawLine(
@@ -358,7 +370,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = neonCyanColor,
-                    contentColor = Color.Black
+                    contentColor = if (isDark) Color.Black else Color.White
                 ),
                 shape = RoundedCornerShape(28.dp),
                 modifier = Modifier
@@ -368,7 +380,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                 Icon(
                     imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isRunning) "Pause" else "Start",
-                    tint = Color.Black,
+                    tint = if (isDark) Color.Black else Color.White,
                     modifier = Modifier.size(30.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -376,7 +388,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                     text = if (isRunning) "PAUSE" else "START",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 20.sp,
-                    color = Color.Black
+                    color = if (isDark) Color.Black else Color.White
                 )
             }
         }
@@ -386,9 +398,9 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
     if (showTimePickerDialog) {
         AlertDialog(
             onDismissRequest = { showTimePickerDialog = false },
-            containerColor = circleTrackColor,
-            titleContentColor = Color.White,
-            textContentColor = Color.White,
+            containerColor = dialogBgColor,
+            titleContentColor = textColor,
+            textContentColor = textColor,
             title = {
                 Text(
                     text = "Set Study Time",
@@ -400,7 +412,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                 Column {
                     Text(
                         text = "Set hours and minutes separately:",
-                        color = Color.LightGray,
+                        color = textColor.copy(alpha = 0.7f),
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -429,8 +441,8 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = neonCyanColor,
                                     unfocusedBorderColor = Color.Gray,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    focusedTextColor = textColor,
+                                    unfocusedTextColor = textColor
                                 )
                             )
                         }
@@ -439,7 +451,7 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                             text = ":",
                             fontSize = 28.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = textColor,
                             modifier = Modifier.padding(top = 16.dp)
                         )
 
@@ -462,8 +474,8 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = neonCyanColor,
                                     unfocusedBorderColor = Color.Gray,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
+                                    focusedTextColor = textColor,
+                                    unfocusedTextColor = textColor
                                 )
                             )
                         }
@@ -482,14 +494,14 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
                         }
                         showTimePickerDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = neonCyanColor, contentColor = Color.Black)
+                    colors = ButtonDefaults.buttonColors(containerColor = neonCyanColor, contentColor = if (isDark) Color.Black else Color.White)
                 ) {
                     Text("Set Time", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showTimePickerDialog = false }) {
-                    Text("Cancel", color = Color.LightGray)
+                    Text("Cancel", color = textColor.copy(alpha = 0.7f))
                 }
             }
         )
@@ -499,11 +511,12 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
     if (showAnalyticsSheet) {
         ModalBottomSheet(
             onDismissRequest = { showAnalyticsSheet = false },
-            containerColor = Color(0xFF1B222C),
+            containerColor = if (isDark) Color(0xFF1B222C) else MaterialTheme.colorScheme.surface,
             scrimColor = Color.Black.copy(alpha = 0.6f)
         ) {
             StudyAnalyticsView(
                 sessions = studySessions,
+                viewModel = viewModel,
                 onClose = { showAnalyticsSheet = false }
             )
         }
@@ -512,24 +525,31 @@ fun StudyTimerScreen(viewModel: TaskViewModel) {
 
 /**
  * STUDY ANALYTICS VIEW
- * Displays automatic real-time study progress with progress bars for Day, Week, Month, and Year (Year-by-Year list).
+ * Displays automatic real-time study progress with progress bars for Day, Week, Month, and Year.
  */
 @Composable
 fun StudyAnalyticsView(
     sessions: List<StudySession>,
+    viewModel: TaskViewModel,
     onClose: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf("Day") }
     val tabs = listOf("Day", "Week", "Month", "Year")
 
-    val neonCyan = Color(0xFF00E5FF)
-    val trackBg = Color(0xFF2A3648)
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkModePref by viewModel.isDarkMode.collectAsState()
+    val isDark = isDarkModePref ?: isSystemDark
+
+    val neonCyan = if (isDark) Color(0xFF00E5FF) else MaterialTheme.colorScheme.primary
+    val trackBg = if (isDark) Color(0xFF2A3648) else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+    val subTextColor = if (isDark) Color.LightGray else MaterialTheme.colorScheme.onSurfaceVariant
 
     // Calculate time metrics from automatic session history
     val now = System.currentTimeMillis()
     val cal = Calendar.getInstance()
 
-    // 1. Day stats (Today)
+    // 1. DAY STATS (24 Hours Total Day Capacity = 1440 Minutes)
     cal.timeInMillis = now
     cal.set(Calendar.HOUR_OF_DAY, 0)
     cal.set(Calendar.MINUTE, 0)
@@ -538,20 +558,20 @@ fun StudyAnalyticsView(
 
     val todaySessions = sessions.filter { it.timestamp >= startOfDay }
     val todayMins = todaySessions.sumOf { it.durationMinutes }
-    val dailyGoalMins = 120 // 2 Hours Goal
+    val dailyCapacityMins = 24 * 60 // 24 Hours = 1440 Minutes
 
     // 9 Daily Time Periods (Dawn, Morning, Late Morning, Noon, Dusk, Evening, Late Evening, Night Time, Mid Night Time)
     val dayPeriodList = remember(todaySessions) {
         val periods = listOf(
-            Triple("Dawn", "🌅 4 AM - 7 AM", setOf(4, 5, 6)),
-            Triple("Morning", "🌄 7 AM - 10 AM", setOf(7, 8, 9)),
-            Triple("Late Morning", "☀️ 10 AM - 12 PM", setOf(10, 11)),
-            Triple("Noon", "🌤️ 12 PM - 3 PM", setOf(12, 13, 14)),
-            Triple("Dusk", "🌆 3 PM - 6 PM", setOf(15, 16, 17)),
-            Triple("Evening", "🌆 6 PM - 8 PM", setOf(18, 19)),
-            Triple("Late Evening", "🌃 8 PM - 10 PM", setOf(20, 21)),
-            Triple("Night Time", "🌙 10 PM - 1 AM", setOf(22, 23, 0)),
-            Triple("Mid Night Time", "🌌 1 AM - 4 AM", setOf(1, 2, 3))
+            Triple("Dawn", "🌅 4 AM - 7 AM (3h)", setOf(4, 5, 6)),
+            Triple("Morning", "🌄 7 AM - 10 AM (3h)", setOf(7, 8, 9)),
+            Triple("Late Morning", "☀️ 10 AM - 12 PM (2h)", setOf(10, 11)),
+            Triple("Noon", "🌤️ 12 PM - 3 PM (3h)", setOf(12, 13, 14)),
+            Triple("Dusk", "🌆 3 PM - 6 PM (3h)", setOf(15, 16, 17)),
+            Triple("Evening", "🌆 6 PM - 8 PM (2h)", setOf(18, 19)),
+            Triple("Late Evening", "🌃 8 PM - 10 PM (2h)", setOf(20, 21)),
+            Triple("Night Time", "🌙 10 PM - 1 AM (3h)", setOf(22, 23, 0)),
+            Triple("Mid Night Time", "🌌 1 AM - 4 AM (3h)", setOf(1, 2, 3))
         )
 
         periods.map { (name, label, hours) ->
@@ -565,7 +585,7 @@ fun StudyAnalyticsView(
         }
     }
 
-    // 2. Week stats
+    // 2. WEEK STATS (24 Hours x 7 Days = 168 Hours = 10,080 Minutes)
     cal.timeInMillis = now
     cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
     cal.set(Calendar.HOUR_OF_DAY, 0)
@@ -574,12 +594,12 @@ fun StudyAnalyticsView(
     val startOfWeek = cal.timeInMillis
     val weekSessions = sessions.filter { it.timestamp >= startOfWeek }
     val weekMins = weekSessions.sumOf { it.durationMinutes }
-    val weeklyGoalMins = 900 // 15 Hours Goal
+    val weeklyCapacityMins = 24 * 7 * 60 // 168 Hours = 10,080 Minutes
 
-    // Week Days Breakdown (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+    // Week Days Breakdown (24 Hours per day = 1440 Minutes)
     val weekDayList = remember(sessions, startOfWeek) {
         val list = mutableListOf<DayPeriodStat>()
-        val dayFormat = SimpleDateFormat("EEEE (MMM d)", Locale.getDefault())
+        val dayFormat = SimpleDateFormat("EEEE", Locale.getDefault())
         val c = Calendar.getInstance()
 
         for (d in 0 until 7) {
@@ -602,74 +622,120 @@ fun StudyAnalyticsView(
         list
     }
 
-    // 3. Month stats
+    // 3. MONTH STATS (Days in Month x 24 Hours)
     cal.timeInMillis = now
     cal.set(Calendar.DAY_OF_MONTH, 1)
     cal.set(Calendar.HOUR_OF_DAY, 0)
     cal.set(Calendar.MINUTE, 0)
     cal.set(Calendar.SECOND, 0)
     val startOfMonth = cal.timeInMillis
+    val daysInCurrentMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     val monthSessions = sessions.filter { it.timestamp >= startOfMonth }
     val monthMins = monthSessions.sumOf { it.durationMinutes }
-    val monthlyGoalMins = 3600 // 60 Hours Goal
+    val monthlyCapacityMins = daysInCurrentMonth * 24 * 60
 
-    // 4. All 12 Months breakdown list
-    val yearMonthList = remember(sessions) {
+    // Weekly breakdown for the current month (Week 1, Week 2, Week 3, Week 4, Week 5)
+    val monthWeekList = remember(sessions, startOfMonth) {
         val list = mutableListOf<MonthStat>()
-        val dateFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
         val c = Calendar.getInstance()
 
-        for (i in 0 until 12) {
-            c.timeInMillis = now
-            c.add(Calendar.MONTH, -i)
-            c.set(Calendar.DAY_OF_MONTH, 1)
+        c.timeInMillis = startOfMonth
+        val daysInMonth = c.getActualMaximum(Calendar.DAY_OF_MONTH)
+
+        var dayStart = 1
+        var weekIndex = 1
+
+        while (dayStart <= daysInMonth) {
+            val dayEnd = (dayStart + 6).coerceAtMost(daysInMonth)
+
+            c.timeInMillis = startOfMonth
+            c.set(Calendar.DAY_OF_MONTH, dayStart)
             c.set(Calendar.HOUR_OF_DAY, 0)
             c.set(Calendar.MINUTE, 0)
             c.set(Calendar.SECOND, 0)
-            val mStart = c.timeInMillis
+            val wStart = c.timeInMillis
 
-            c.add(Calendar.MONTH, 1)
-            val mEnd = c.timeInMillis
+            c.set(Calendar.DAY_OF_MONTH, dayEnd)
+            c.set(Calendar.HOUR_OF_DAY, 23)
+            c.set(Calendar.MINUTE, 59)
+            c.set(Calendar.SECOND, 59)
+            val wEnd = c.timeInMillis
 
-            val monthName = dateFormat.format(Date(mStart))
-            val mSessions = sessions.filter { it.timestamp in mStart until mEnd }
-            val mTotalMins = mSessions.sumOf { it.durationMinutes }
+            val wSessions = sessions.filter { it.timestamp in wStart..wEnd }
+            val wTotalMins = wSessions.sumOf { it.durationMinutes }
+            val daysInWeek = (dayEnd - dayStart + 1)
 
-            list.add(MonthStat(monthName, mTotalMins))
+            val weekTitle = "Week $weekIndex"
+            list.add(MonthStat(weekTitle, wTotalMins, daysInWeek * 24 * 60))
+
+            dayStart += 7
+            weekIndex++
         }
         list
     }
 
-    // 5. Year-by-Year breakdown list (2026, 2025, 2024, 2023, 2022)
-    val yearList = remember(sessions) {
-        val list = mutableListOf<YearStat>()
+    // 4. YEAR STATS (Days in Year x 24 Hours = 8760 Hours = 525,600 Minutes)
+    cal.timeInMillis = now
+    val daysInCurrentYear = cal.getActualMaximum(Calendar.DAY_OF_YEAR)
+    val yearlyCapacityMins = daysInCurrentYear * 24 * 60
+
+    // Monthly breakdown for the current year (January, February, March ... December)
+    val yearMonthBreakdownList = remember(sessions) {
+        val list = mutableListOf<MonthStat>()
+        val monthNameFormat = SimpleDateFormat("MMMM", Locale.getDefault())
         val c = Calendar.getInstance()
         val currentYear = c.get(Calendar.YEAR)
 
-        for (y in currentYear downTo (currentYear - 4)) {
-            val yCal = Calendar.getInstance()
-            yCal.set(y, Calendar.JANUARY, 1, 0, 0, 0)
-            val yStart = yCal.timeInMillis
+        for (m in 0 until 12) {
+            c.set(currentYear, m, 1, 0, 0, 0)
+            val mStart = c.timeInMillis
+            val daysInM = c.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-            yCal.set(y, Calendar.DECEMBER, 31, 23, 59, 59)
-            val yEnd = yCal.timeInMillis
+            c.set(currentYear, m, daysInM, 23, 59, 59)
+            val mEnd = c.timeInMillis
 
-            val ySessions = sessions.filter { it.timestamp in yStart..yEnd }
-            val yTotalMins = ySessions.sumOf { it.durationMinutes }
+            val mName = monthNameFormat.format(Date(mStart))
+            val mSessions = sessions.filter { it.timestamp in mStart..mEnd }
+            val mTotalMins = mSessions.sumOf { it.durationMinutes }
 
-            list.add(YearStat("Year $y", yTotalMins, ySessions.size))
+            list.add(MonthStat(mName, mTotalMins, daysInM * 24 * 60))
         }
         list
     }
 
-    val currentYearStat = yearList.firstOrNull()
-    val currentYearMins = currentYearStat?.totalMinutes ?: 0
-    val yearGoalMins = 43200 // 720 Hours Yearly Target
+    val currentYearMins = yearMonthBreakdownList.sumOf { it.totalMinutes }
+
+    val isSwipeTrackingNavEnabled by viewModel.isSwipeTrackingNavEnabled.collectAsState()
+
+    var sheetOffsetX by remember { mutableFloatStateOf(0f) }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp)
+            .pointerInput(selectedTab, isSwipeTrackingNavEnabled) {
+                if (isSwipeTrackingNavEnabled) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val currentTabIdx = tabs.indexOf(selectedTab)
+                            if (currentTabIdx != -1) {
+                                if (sheetOffsetX < -60f && currentTabIdx < tabs.size - 1) {
+                                    // Swipe Left -> Next Tab
+                                    selectedTab = tabs[currentTabIdx + 1]
+                                } else if (sheetOffsetX > 60f && currentTabIdx > 0) {
+                                    // Swipe Right -> Previous Tab
+                                    selectedTab = tabs[currentTabIdx - 1]
+                                }
+                            }
+                            sheetOffsetX = 0f
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            sheetOffsetX += dragAmount
+                        }
+                    )
+                }
+            }
     ) {
         // TOP HEADER
         Row(
@@ -679,20 +745,15 @@ fun StudyAnalyticsView(
         ) {
             Column {
                 Text(
-                    text = "Auto Study Tracking",
+                    text = "Tracking Progress",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    color = Color.White
-                )
-                Text(
-                    text = "Continuous automatic timer tracking",
-                    fontSize = 12.sp,
-                    color = neonCyan
+                    color = textColor
                 )
             }
 
             IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.LightGray)
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = subTextColor)
             }
         }
 
@@ -722,7 +783,7 @@ fun StudyAnalyticsView(
                         text = tab,
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.Black else Color.White
+                        color = if (isSelected) (if (isDark) Color.Black else Color.White) else textColor
                     )
                 }
             }
@@ -730,312 +791,343 @@ fun StudyAnalyticsView(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 520.dp)
-        ) {
-            when (selectedTab) {
-                "Day" -> {
-                    item {
-                        ProgressCard(
-                            title = "Daily Study Goal",
-                            subtitle = "Target: 2 Hours (120 min)",
-                            currentMins = todayMins,
-                            targetMins = dailyGoalMins,
-                            sessionCount = todaySessions.size,
-                            accentColor = neonCyan,
-                            trackBg = trackBg
-                        )
-                    }
+        AnimatedContent(
+            targetState = selectedTab,
+            transitionSpec = {
+                val oldIndex = tabs.indexOf(initialState)
+                val newIndex = tabs.indexOf(targetState)
+                if (newIndex > oldIndex) {
+                    (slideInHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeIn(animationSpec = tween(300))) togetherWith
+                    (slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeOut(animationSpec = tween(300)))
+                } else {
+                    (slideInHorizontally(animationSpec = tween(300)) { fullWidth -> -fullWidth } + fadeIn(animationSpec = tween(300))) togetherWith
+                    (slideOutHorizontally(animationSpec = tween(300)) { fullWidth -> fullWidth } + fadeOut(animationSpec = tween(300)))
+                }
+            },
+            label = "SheetTabAnimation"
+        ) { targetTab ->
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+            ) {
+                when (targetTab) {
+                    "Day" -> {
+                        item {
+                            ProgressCard(
+                                title = "Daily Status Progress",
+                                subtitle = "Strength: 24 Hours",
+                                currentMins = todayMins,
+                                targetMins = dailyCapacityMins,
+                                sessionCount = todaySessions.size,
+                                showTimes = true,
+                                accentColor = neonCyan,
+                                trackBg = trackBg,
+                                textColor = textColor,
+                                subTextColor = subTextColor
+                            )
+                        }
 
-                    item {
-                        // TODAY'S TIME PERIODS DOWN LIST (Dawn, Morning, Late Morning, Noon, Dusk, Evening, Late Evening, Night Time, Mid Night Time)
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = trackBg),
-                            shape = RoundedCornerShape(20.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Daily Time Periods Breakdown",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
+                        item {
+                            // TODAY'S TIME PERIODS DOWN LIST
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = trackBg),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Daily Time Periods Breakdown",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = textColor
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
 
-                                dayPeriodList.forEach { period ->
-                                    val periodRatio = (period.totalMinutes.toFloat() / 60f).coerceIn(0f, 1f)
-                                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Column {
+                                    dayPeriodList.forEach { period ->
+                                        val periodRatio = (period.totalMinutes.toFloat() / 180f).coerceIn(0f, 1f)
+                                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Column {
+                                                    Text(
+                                                        text = period.periodName,
+                                                        fontSize = 14.sp,
+                                                        color = textColor,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    if (period.timeLabel.isNotEmpty()) {
+                                                        Text(
+                                                            text = period.timeLabel,
+                                                            fontSize = 11.sp,
+                                                            color = subTextColor
+                                                        )
+                                                    }
+                                                }
                                                 Text(
-                                                    text = period.periodName,
-                                                    fontSize = 14.sp,
-                                                    color = Color.White,
+                                                    text = "${period.totalMinutes / 60}h ${period.totalMinutes % 60}m",
+                                                    fontSize = 13.sp,
+                                                    color = neonCyan,
                                                     fontWeight = FontWeight.Bold
                                                 )
-                                                if (period.timeLabel.isNotEmpty()) {
-                                                    Text(
-                                                        text = period.timeLabel,
-                                                        fontSize = 11.sp,
-                                                        color = Color.LightGray
-                                                    )
-                                                }
                                             }
-                                            Text(
-                                                text = "${period.totalMinutes / 60}h ${period.totalMinutes % 60}m",
-                                                fontSize = 13.sp,
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            LinearProgressIndicator(
+                                                progress = { periodRatio },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp)),
                                                 color = neonCyan,
-                                                fontWeight = FontWeight.Bold
+                                                trackColor = Color.Black.copy(alpha = 0.2f)
                                             )
                                         }
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        LinearProgressIndicator(
-                                            progress = { periodRatio },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(8.dp)
-                                                .clip(RoundedCornerShape(4.dp)),
-                                            color = neonCyan,
-                                            trackColor = Color.Black.copy(alpha = 0.3f)
-                                        )
                                     }
                                 }
                             }
                         }
                     }
-                }
-                "Week" -> {
-                    item {
-                        ProgressCard(
-                            title = "Weekly Study Goal",
-                            subtitle = "Target: 15 Hours (900 min)",
-                            currentMins = weekMins,
-                            targetMins = weeklyGoalMins,
-                            sessionCount = weekSessions.size,
-                            accentColor = Color(0xFF00FF9D),
-                            trackBg = trackBg
-                        )
-                    }
-
-                    item {
-                        // WEEKLY DAILY BREAKDOWN (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = trackBg),
-                            shape = RoundedCornerShape(20.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "This Week's Daily Breakdown",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                weekDayList.forEach { dayStat ->
-                                    val dRatio = (dayStat.totalMinutes.toFloat() / 120f).coerceIn(0f, 1f)
-                                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                text = dayStat.periodName,
-                                                fontSize = 13.sp,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                text = "${dayStat.totalMinutes / 60}h ${dayStat.totalMinutes % 60}m",
-                                                fontSize = 13.sp,
-                                                color = Color(0xFF00FF9D),
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        LinearProgressIndicator(
-                                            progress = { dRatio },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(8.dp)
-                                                .clip(RoundedCornerShape(4.dp)),
-                                            color = Color(0xFF00FF9D),
-                                            trackColor = Color.Black.copy(alpha = 0.3f)
-                                        )
-                                    }
-                                }
-                            }
+                    "Week" -> {
+                        item {
+                            ProgressCard(
+                                title = "Weekly Status Progress",
+                                subtitle = "strength: 168 Hours (7 days)",
+                                currentMins = weekMins,
+                                targetMins = weeklyCapacityMins,
+                                sessionCount = weekSessions.size,
+                                showTimes = true,
+                                accentColor = if (isDark) Color(0xFF00FF9D) else neonCyan,
+                                trackBg = trackBg,
+                                textColor = textColor,
+                                subTextColor = subTextColor
+                            )
                         }
-                    }
-                }
-                "Month" -> {
-                    item {
-                        ProgressCard(
-                            title = "Monthly Study Goal",
-                            subtitle = "Target: 60 Hours (3600 min)",
-                            currentMins = monthMins,
-                            targetMins = monthlyGoalMins,
-                            sessionCount = monthSessions.size,
-                            accentColor = Color(0xFFFF9100),
-                            trackBg = trackBg
-                        )
-                    }
 
-                    item {
-                        // DIFFERENT MONTHS LIST DOWN WITH TRACKING STATUS LOAD UP
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = trackBg),
-                            shape = RoundedCornerShape(20.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Monthly Tracking History",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                yearMonthList.forEach { mStat ->
-                                    val mRatio = (mStat.totalMinutes.toFloat() / 3600f).coerceIn(0f, 1f)
-                                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                text = mStat.monthName,
-                                                fontSize = 13.sp,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            Text(
-                                                text = "${mStat.totalMinutes / 60}h ${mStat.totalMinutes % 60}m",
-                                                fontSize = 13.sp,
-                                                color = Color(0xFFFF9100),
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        LinearProgressIndicator(
-                                            progress = { mRatio },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(8.dp)
-                                                .clip(RoundedCornerShape(4.dp)),
-                                            color = Color(0xFFFF9100),
-                                            trackColor = Color.Black.copy(alpha = 0.3f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                "Year" -> {
-                    item {
-                        // YEARLY GOAL CARD
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = trackBg),
-                            shape = RoundedCornerShape(20.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(text = "Yearly Study Progress", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
-                                        Text(text = "Target: 720 Hours (Yearly)", fontSize = 12.sp, color = Color.LightGray)
-                                    }
-                                    val yearProgressRatio = (currentYearMins.toFloat() / yearGoalMins.toFloat()).coerceIn(0f, 1f)
+                        item {
+                            // WEEKLY DAILY BREAKDOWN (24h per day = 1440 min)
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = trackBg),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
-                                        text = "${(yearProgressRatio * 100).toInt()}%",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 24.sp,
-                                        color = neonCyan
+                                        text = "This Week's Daily Breakdown",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = textColor
                                     )
-                                }
+                                    Spacer(modifier = Modifier.height(12.dp))
 
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                val overallProgress = (currentYearMins.toFloat() / yearGoalMins.toFloat()).coerceIn(0f, 1f)
-                                LinearProgressIndicator(
-                                    progress = { overallProgress },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(12.dp)
-                                        .clip(RoundedCornerShape(6.dp)),
-                                    color = neonCyan,
-                                    trackColor = Color.Black.copy(alpha = 0.3f)
-                                )
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text("Current Year Studied", fontSize = 11.sp, color = Color.Gray)
-                                        Text("${currentYearMins / 60}h ${currentYearMins % 60}m", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("Total Sessions", fontSize = 11.sp, color = Color.Gray)
-                                        Text("${currentYearStat?.sessionCount ?: 0} Sessions", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    weekDayList.forEach { dayStat ->
+                                        val dRatio = (dayStat.totalMinutes.toFloat() / 1440f).coerceIn(0f, 1f)
+                                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = dayStat.periodName,
+                                                    fontSize = 13.sp,
+                                                    color = textColor,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = "${dayStat.totalMinutes / 60}h ${dayStat.totalMinutes % 60}m",
+                                                    fontSize = 13.sp,
+                                                    color = if (isDark) Color(0xFF00FF9D) else neonCyan,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            LinearProgressIndicator(
+                                                progress = { dRatio },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp)),
+                                                color = if (isDark) Color(0xFF00FF9D) else neonCyan,
+                                                trackColor = Color.Black.copy(alpha = 0.2f)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    "Month" -> {
+                        item {
+                            ProgressCard(
+                                title = "Monthly Status Progress",
+                                subtitle = "Strength: ${daysInCurrentMonth * 24} Hrs",
+                                currentMins = monthMins,
+                                targetMins = monthlyCapacityMins,
+                                sessionCount = monthSessions.size,
+                                showTimes = false,
+                                accentColor = if (isDark) Color(0xFFFF9100) else neonCyan,
+                                trackBg = trackBg,
+                                textColor = textColor,
+                                subTextColor = subTextColor
+                            )
+                        }
 
-                    item {
-                        // YEAR-BY-YEAR HISTORY LIST DOWN THE SCREEN
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = trackBg),
-                            shape = RoundedCornerShape(20.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Year-by-Year Tracking History",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = Color.White
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
+                        item {
+                            // CURRENT MONTH WEEKLY BREAKDOWN
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = trackBg),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Current Month Weekly Breakdown",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = textColor
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
 
-                                yearList.forEach { yStat ->
-                                    val yRatio = (yStat.totalMinutes.toFloat() / yearGoalMins.toFloat()).coerceIn(0f, 1f)
-                                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(yStat.yearName, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                            Text("${yStat.totalMinutes / 60}h ${yStat.totalMinutes % 60}m", fontSize = 13.sp, color = neonCyan, fontWeight = FontWeight.Bold)
+                                    monthWeekList.forEach { mStat ->
+                                        val mRatio = (mStat.totalMinutes.toFloat() / mStat.capacityMinutes.toFloat()).coerceIn(0f, 1f)
+                                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = mStat.monthName,
+                                                    fontSize = 13.sp,
+                                                    color = textColor,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = "${mStat.totalMinutes / 60}h ${mStat.totalMinutes % 60}m",
+                                                    fontSize = 13.sp,
+                                                    color = if (isDark) Color(0xFFFF9100) else neonCyan,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            LinearProgressIndicator(
+                                                progress = { mRatio },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp)),
+                                                color = if (isDark) Color(0xFFFF9100) else neonCyan,
+                                                trackColor = Color.Black.copy(alpha = 0.2f)
+                                            )
                                         }
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        LinearProgressIndicator(
-                                            progress = { yRatio },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(8.dp)
-                                                .clip(RoundedCornerShape(4.dp)),
-                                            color = neonCyan,
-                                            trackColor = Color.Black.copy(alpha = 0.3f)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "Year" -> {
+                        item {
+                            // YEARLY GOAL CARD
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = trackBg),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(18.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(text = "Yearly Status Progress", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = textColor)
+                                            Text(text = "Strength: ${daysInCurrentYear * 24} Hours", fontSize = 12.sp, color = subTextColor)
+                                        }
+                                        val yearProgressRatio = (currentYearMins.toFloat() / yearlyCapacityMins.toFloat()).coerceIn(0f, 1f)
+                                        Text(
+                                            text = "${(yearProgressRatio * 100).toInt()}%",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 24.sp,
+                                            color = neonCyan
                                         )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    val overallProgress = (currentYearMins.toFloat() / yearlyCapacityMins.toFloat()).coerceIn(0f, 1f)
+                                    LinearProgressIndicator(
+                                        progress = { overallProgress },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(12.dp)
+                                            .clip(RoundedCornerShape(6.dp)),
+                                        color = neonCyan,
+                                        trackColor = Color.Black.copy(alpha = 0.2f)
+                                    )
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("Current Year Status", fontSize = 11.sp, color = subTextColor)
+                                            Text("${currentYearMins / 60}h ${currentYearMins % 60}m", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            // CURRENT YEAR MONTHLY BREAKDOWN
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = trackBg),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Current Year Monthly Breakdown",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = textColor
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    yearMonthBreakdownList.forEach { mStat ->
+                                        val mRatio = (mStat.totalMinutes.toFloat() / mStat.capacityMinutes.toFloat()).coerceIn(0f, 1f)
+                                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = mStat.monthName,
+                                                    fontSize = 13.sp,
+                                                    color = textColor,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = "${mStat.totalMinutes / 60}h ${mStat.totalMinutes % 60}m",
+                                                    fontSize = 13.sp,
+                                                    color = neonCyan,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            LinearProgressIndicator(
+                                                progress = { mRatio },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp)),
+                                                color = neonCyan,
+                                                trackColor = Color.Black.copy(alpha = 0.2f)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1057,8 +1149,11 @@ fun ProgressCard(
     currentMins: Int,
     targetMins: Int,
     sessionCount: Int,
+    showTimes: Boolean = true,
     accentColor: Color,
-    trackBg: Color
+    trackBg: Color,
+    textColor: Color = Color.White,
+    subTextColor: Color = Color.LightGray
 ) {
     val progress = (currentMins.toFloat() / targetMins.toFloat()).coerceIn(0f, 1f)
 
@@ -1074,8 +1169,8 @@ fun ProgressCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(text = title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
-                    Text(text = subtitle, fontSize = 12.sp, color = Color.LightGray)
+                    Text(text = title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = textColor)
+                    Text(text = subtitle, fontSize = 12.sp, color = subTextColor)
                 }
                 Text(
                     text = "${(progress * 100).toInt()}%",
@@ -1095,7 +1190,7 @@ fun ProgressCard(
                     .height(12.dp)
                     .clip(RoundedCornerShape(6.dp)),
                 color = accentColor,
-                trackColor = Color.Black.copy(alpha = 0.3f)
+                trackColor = Color.Black.copy(alpha = 0.2f)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1105,12 +1200,14 @@ fun ProgressCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("Studied Time", fontSize = 11.sp, color = Color.Gray)
-                    Text("${currentMins / 60}h ${currentMins % 60}m", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Status Time", fontSize = 11.sp, color = subTextColor)
+                    Text("${currentMins / 60}h ${currentMins % 60}m", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Sessions Done", fontSize = 11.sp, color = Color.Gray)
-                    Text("$sessionCount Sessions", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (showTimes) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Focus Count", fontSize = 11.sp, color = subTextColor)
+                        Text("$sessionCount Times", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textColor)
+                    }
                 }
             }
         }
@@ -1125,11 +1222,13 @@ data class DayPeriodStat(
 
 data class MonthStat(
     val monthName: String,
-    val totalMinutes: Int
+    val totalMinutes: Int,
+    val capacityMinutes: Int = 43200
 )
 
 data class YearStat(
     val yearName: String,
     val totalMinutes: Int,
-    val sessionCount: Int
+    val sessionCount: Int,
+    val capacityMinutes: Int = 525600
 )

@@ -69,6 +69,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     val showCircularProgress: StateFlow<Boolean> = settingsManager.showCircularProgressFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val isSwipeMainNavEnabled: StateFlow<Boolean> = settingsManager.swipeMainNavFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val isSwipeTrackingNavEnabled: StateFlow<Boolean> = settingsManager.swipeTrackingNavFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val currency: StateFlow<String> = settingsManager.currencyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "$")
 
@@ -498,6 +504,18 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     fun setKeepScreenAwake(enabled: Boolean) {
         viewModelScope.launch {
             settingsManager.setKeepScreenAwake(enabled)
+        }
+    }
+
+    fun setSwipeMainNav(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setSwipeMainNav(enabled)
+        }
+    }
+
+    fun setSwipeTrackingNav(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setSwipeTrackingNav(enabled)
         }
     }
 

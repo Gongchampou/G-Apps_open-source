@@ -25,6 +25,8 @@ class SettingsManager(context: Context) {
     val moneyLimitFlow: Flow<Float> = dataStore.data.map { it[MONEY_LIMIT] ?: 0f }
     val moneySpentFlow: Flow<Float> = dataStore.data.map { it[MONEY_SPENT] ?: 0f }
     val keepScreenAwakeFlow: Flow<Boolean> = dataStore.data.map { it[KEEP_SCREEN_AWAKE] ?: false }
+    val swipeMainNavFlow: Flow<Boolean> = dataStore.data.map { it[SWIPE_MAIN_NAV] ?: true }
+    val swipeTrackingNavFlow: Flow<Boolean> = dataStore.data.map { it[SWIPE_TRACKING_NAV] ?: true }
 
     suspend fun setDarkMode(enabled: Boolean) {
         dataStore.edit { it[DARK_MODE] = enabled }
@@ -70,6 +72,14 @@ class SettingsManager(context: Context) {
         dataStore.edit { it[KEEP_SCREEN_AWAKE] = enabled }
     }
 
+    suspend fun setSwipeMainNav(enabled: Boolean) {
+        dataStore.edit { it[SWIPE_MAIN_NAV] = enabled }
+    }
+
+    suspend fun setSwipeTrackingNav(enabled: Boolean) {
+        dataStore.edit { it[SWIPE_TRACKING_NAV] = enabled }
+    }
+
     companion object {
         private val DARK_MODE = booleanPreferencesKey("dark_mode")
         private val NOTIFICATIONS = booleanPreferencesKey("notifications")
@@ -82,5 +92,7 @@ class SettingsManager(context: Context) {
         private val MONEY_LIMIT = floatPreferencesKey("money_limit")
         private val MONEY_SPENT = floatPreferencesKey("money_spent")
         private val KEEP_SCREEN_AWAKE = booleanPreferencesKey("keep_screen_awake")
+        private val SWIPE_MAIN_NAV = booleanPreferencesKey("swipe_main_nav")
+        private val SWIPE_TRACKING_NAV = booleanPreferencesKey("swipe_tracking_nav")
     }
 }
